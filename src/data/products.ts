@@ -29,7 +29,7 @@ export const products: Product[] = [
     category: "ساچمه نقره",
     weightGrams: 25,
     purity: "999",
-    image: "/images/products/farreh-shot-25g.jpeg",
+    image: "/images/products/farreh-shot-25g.jpg",
     featured: false,
     ...priceForWeight(25),
   },
