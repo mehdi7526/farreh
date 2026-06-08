@@ -23,6 +23,17 @@ const priceForWeight = (weightGrams: number) => ({
 
 export const products: Product[] = [
   {
+    id: "farreh-shot-25g",
+    titleFa: "ساچمه نقره ۲۵ گرمی",
+    titleEn: "Farreh Silver Shot 25g",
+    category: "ساچمه نقره",
+    weightGrams: 25,
+    purity: "999",
+    image: "/images/products/farreh-shot-25g.jpeg",
+    featured: false,
+    ...priceForWeight(25),
+  },
+  {
     id: "farreh-shot-50g",
     titleFa: "ساچمه نقره ۵۰ گرمی",
     titleEn: "Farreh Silver Shot 50g",

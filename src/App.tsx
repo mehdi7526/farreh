@@ -2,15 +2,19 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   Gem,
+  Home,
   Instagram,
+  LockKeyhole,
   MapPin,
   Phone,
+  RotateCcw,
+  Save,
   Scale,
   ShieldCheck,
   Sparkles,
   Store,
 } from "lucide-react";
-import { forwardRef, useMemo, useRef, useState } from "react";
+import { forwardRef, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import {
   gramBuyPriceRial,
@@ -20,6 +24,14 @@ import {
   type ProductCategory,
 } from "./data/products";
 import { formatNumber, formatRial, todayFa } from "./utils/format";
+import {
+  PRICE_STORAGE_EVENT,
+  applyPriceStateToProducts,
+  getDefaultPriceState,
+  readPriceState,
+  writePriceState,
+  type SavedPriceState,
+} from "./utils/priceStorage";
 
 const categories: Array<ProductCategory | "همه محصولات"> = [
   "همه محصولات",
@@ -29,9 +41,59 @@ const categories: Array<ProductCategory | "همه محصولات"> = [
 
 const heroStats = [
   { icon: ShieldCheck, label: "عیار", value: "۹۹۹" },
-  { icon: Scale, label: "وزن‌ها", value: "۵۰ تا ۱۰۰۰ گرم" },
-  { icon: Store, label: "مراجعه", value: "تهران، قطریه" },
+  { icon: Scale, label: "وزن‌ها", value: "۲۵ تا ۱۰۰۰ گرم" },
+  { icon: Store, label: "مراجعه", value: "تهران، قیطریه" },
 ];
+
+const defaultPriceState = getDefaultPriceState(
+  products,
+  gramBuyPriceRial,
+  gramSellPriceRial,
+);
+
+const ADMIN_PASSWORD = "uFQyy97z1";
+const ADMIN_AUTH_STORAGE_KEY = "farreh-gallery-admin-auth-v1";
+const PRODUCT_IMAGE_FALLBACK = "/images/products/farreh-shot-50g.jpeg";
+
+const normalizeDigits = (value: string) =>
+  value
+    .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
+    .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)));
+
+const parsePriceInput = (value: string) => {
+  const digits = normalizeDigits(value).replace(/\D/g, "");
+  return digits ? Number(digits) : 0;
+};
+
+const formatPriceInput = (value: number) =>
+  Number.isFinite(value) ? formatNumber(value) : "";
+
+const useFallbackImage = (event: React.SyntheticEvent<HTMLImageElement>) => {
+  if (event.currentTarget.src.endsWith(PRODUCT_IMAGE_FALLBACK)) return;
+
+  event.currentTarget.src = PRODUCT_IMAGE_FALLBACK;
+};
+
+function useSavedPriceState() {
+  const [priceState, setPriceState] = useState(() =>
+    readPriceState(defaultPriceState),
+  );
+
+  useEffect(() => {
+    const syncPriceState = () =>
+      setPriceState(readPriceState(defaultPriceState));
+
+    window.addEventListener(PRICE_STORAGE_EVENT, syncPriceState);
+    window.addEventListener("storage", syncPriceState);
+
+    return () => {
+      window.removeEventListener(PRICE_STORAGE_EVENT, syncPriceState);
+      window.removeEventListener("storage", syncPriceState);
+    };
+  }, []);
+
+  return priceState;
+}
 
 function SilverParticles({ paused }: { paused: boolean }) {
   const groupRef = useRef<THREE.Group>(null);
@@ -54,7 +116,8 @@ function SilverParticles({ paused }: { paused: boolean }) {
     if (paused || !groupRef.current) return;
 
     groupRef.current.rotation.y += delta * 0.035;
-    groupRef.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.22) * 0.08;
+    groupRef.current.rotation.x =
+      Math.sin(state.clock.elapsedTime * 0.22) * 0.08;
   });
 
   return (
@@ -89,7 +152,8 @@ function FloatingSilver({ paused }: { paused: boolean }) {
     if (paused || !groupRef.current) return;
 
     groupRef.current.rotation.y -= delta * 0.08;
-    groupRef.current.position.y = Math.sin(state.clock.elapsedTime * 0.55) * 0.08;
+    groupRef.current.position.y =
+      Math.sin(state.clock.elapsedTime * 0.55) * 0.08;
   });
 
   const beads = useMemo(
@@ -128,14 +192,21 @@ function HeroScene() {
   const reducedMotion = useReducedMotion() ?? false;
 
   return (
-    <div className="pointer-events-none absolute inset-0 z-0 opacity-80" aria-hidden="true">
+    <div
+      className="pointer-events-none absolute inset-0 z-0 opacity-80"
+      aria-hidden="true"
+    >
       <Canvas
         dpr={1}
         camera={{ position: [0, 0, 4.7], fov: 54 }}
         gl={{ alpha: true, antialias: true, powerPreference: "low-power" }}
       >
         <ambientLight intensity={1.4} />
-        <directionalLight position={[2.5, 3, 2]} intensity={2.3} color="#ffffff" />
+        <directionalLight
+          position={[2.5, 3, 2]}
+          intensity={2.3}
+          color="#ffffff"
+        />
         <pointLight position={[-2, 1.5, 2]} intensity={1.6} color="#8ddad4" />
         <SilverParticles paused={reducedMotion} />
         <FloatingSilver paused={reducedMotion} />
@@ -202,7 +273,11 @@ function Header() {
           </a>
         </div>
 
-        <a className="icon-button" href="tel:02122696502" aria-label="تماس با گالری فرّه">
+        <a
+          className="icon-button"
+          href="tel:02122696502"
+          aria-label="تماس با گالری فرّه"
+        >
           <Phone size={18} />
         </a>
       </nav>
@@ -210,7 +285,7 @@ function Header() {
   );
 }
 
-function Hero() {
+function Hero({ priceState }: { priceState: SavedPriceState }) {
   const reducedMotion = useReducedMotion() ?? false;
 
   return (
@@ -280,11 +355,11 @@ function Hero() {
             <div className="hero-rate-grid">
               <div>
                 <span>خرید هر گرم</span>
-                <strong>{formatRial(gramBuyPriceRial)}</strong>
+                <strong>{formatRial(priceState.gramBuyPriceRial)}</strong>
               </div>
               <div>
                 <span>فروش هر گرم</span>
-                <strong>{formatRial(gramSellPriceRial)}</strong>
+                <strong>{formatRial(priceState.gramSellPriceRial)}</strong>
               </div>
             </div>
           </div>
@@ -301,7 +376,9 @@ function Hero() {
         </motion.div>
 
         <motion.div
-          initial={reducedMotion ? false : { opacity: 0, scale: 0.94, rotate: -2 }}
+          initial={
+            reducedMotion ? false : { opacity: 0, scale: 0.94, rotate: -2 }
+          }
           animate={{ opacity: 1, scale: 1, rotate: 0 }}
           transition={{ duration: 0.95, delay: 0.14, ease: [0.22, 1, 0.36, 1] }}
           className="hero-product-frame justify-self-center lg:justify-self-end"
@@ -323,25 +400,27 @@ function Hero() {
   );
 }
 
-function PriceStrip() {
+function PriceStrip({ priceState }: { priceState: SavedPriceState }) {
   return (
     <section id="prices" className="price-board-shell">
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="price-board">
           <div className="price-board-head">
             <div>
-              <p className="text-sm font-bold text-farreh-aqua">نرخ نمایشی امروز</p>
+              <p className="text-sm font-bold text-farreh-aqua">
+                نرخ نمایشی امروز
+              </p>
               <h2 className="mt-1 text-xl font-black text-white">{todayFa}</h2>
             </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="price-pill">
               <span>قیمت خرید هر گرم</span>
-              <strong>{formatRial(gramBuyPriceRial)}</strong>
+              <strong>{formatRial(priceState.gramBuyPriceRial)}</strong>
             </div>
             <div className="price-pill price-pill-accent">
               <span>قیمت فروش هر گرم</span>
-              <strong>{formatRial(gramSellPriceRial)}</strong>
+              <strong>{formatRial(priceState.gramSellPriceRial)}</strong>
             </div>
           </div>
         </div>
@@ -363,21 +442,36 @@ const ProductCard = forwardRef<
       initial={reducedMotion ? false : { opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
       exit={reducedMotion ? undefined : { opacity: 0, y: 18 }}
-      transition={{ duration: 0.48, delay: index * 0.035, ease: [0.22, 1, 0.36, 1] }}
+      transition={{
+        duration: 0.48,
+        delay: index * 0.035,
+        ease: [0.22, 1, 0.36, 1],
+      }}
       whileHover={reducedMotion ? undefined : { y: -8 }}
       className="product-card"
     >
       <div className="product-image-wrap">
-        <img src={product.image} alt={product.titleFa} loading="lazy" />
-        <span className="weight-chip">{formatNumber(product.weightGrams)} گرم</span>
+        <img
+          src={product.image}
+          alt={product.titleFa}
+          loading="lazy"
+          onError={useFallbackImage}
+        />
+        <span className="weight-chip">
+          {formatNumber(product.weightGrams)} گرم
+        </span>
         {product.featured ? <span className="featured-badge">ویژه</span> : null}
       </div>
 
       <div className="p-4 sm:p-5">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-bold text-farreh-aqua">{product.category}</p>
-            <h3 className="mt-1 text-lg font-black leading-7 text-white">{product.titleFa}</h3>
+            <p className="text-xs font-bold text-farreh-aqua">
+              {product.category}
+            </p>
+            <h3 className="mt-1 text-lg font-black leading-7 text-white">
+              {product.titleFa}
+            </h3>
           </div>
           <span className="purity-badge">عیار {product.purity}</span>
         </div>
@@ -405,16 +499,19 @@ const ProductCard = forwardRef<
   );
 });
 
-function ProductsSection() {
-  const [activeCategory, setActiveCategory] =
-    useState<ProductCategory | "همه محصولات">("همه محصولات");
+function ProductsSection({ pricedProducts }: { pricedProducts: Product[] }) {
+  const [activeCategory, setActiveCategory] = useState<
+    ProductCategory | "همه محصولات"
+  >("همه محصولات");
 
   const visibleProducts = useMemo(
     () =>
       activeCategory === "همه محصولات"
-        ? products
-        : products.filter((product) => product.category === activeCategory),
-    [activeCategory],
+        ? pricedProducts
+        : pricedProducts.filter(
+            (product) => product.category === activeCategory,
+          ),
+    [activeCategory, pricedProducts],
   );
 
   return (
@@ -428,7 +525,11 @@ function ProductsSection() {
               <span className="block">با قیمت خرید و فروش</span>
             </h2>
           </div>
-          <div className="segmented-control" role="tablist" aria-label="دسته بندی محصولات">
+          <div
+            className="segmented-control"
+            role="tablist"
+            aria-label="دسته بندی محصولات"
+          >
             {categories.map((category) => (
               <button
                 key={category}
@@ -442,7 +543,10 @@ function ProductsSection() {
           </div>
         </Reveal>
 
-        <motion.div layout className="mt-10 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+        <motion.div
+          layout
+          className="mt-10 grid gap-5 sm:grid-cols-2 xl:grid-cols-3"
+        >
           <AnimatePresence mode="popLayout">
             {visibleProducts.map((product, index) => (
               <ProductCard key={product.id} product={product} index={index} />
@@ -496,7 +600,7 @@ function ContactSection() {
           <p className="mt-5 max-w-2xl text-base leading-8 text-farreh-silver/72">
             قیمت‌های سایت نمونه‌ی نمایشی هستند و نرخ نهایی خرید و فروش با تماس
             مستقیم اعلام می‌شود. برای مراجعه حضوری، گالری فرّه در تهران، مجتمع
-            تجاری قطریه، طبقه همکف قرار دارد.
+            تجاری قیطریه، طبقه همکف قرار دارد.
           </p>
         </Reveal>
 
@@ -512,7 +616,7 @@ function ContactSection() {
             <MapPin size={22} />
             <span>
               <small>آدرس</small>
-              <strong>تهران، مجتمع تجاری قطریه، طبقه همکف</strong>
+              <strong>تهران، مجتمع تجاری قیطریه، طبقه همکف</strong>
             </span>
           </div>
           <a
@@ -533,13 +637,312 @@ function ContactSection() {
   );
 }
 
+function AdminLoginPage({ onAuthenticated }: { onAuthenticated: () => void }) {
+  const [password, setPassword] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const submitPassword = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (password === ADMIN_PASSWORD) {
+      window.sessionStorage.setItem(ADMIN_AUTH_STORAGE_KEY, "true");
+      setErrorMessage("");
+      onAuthenticated();
+      return;
+    }
+
+    setErrorMessage("رمز عبور درست نیست.");
+  };
+
+  return (
+    <main className="min-h-screen bg-farreh-ink text-white">
+      <section className="section-shell flex min-h-screen items-center px-4 py-10 sm:px-6 lg:px-8">
+        <div className="relative z-10 mx-auto w-full max-w-md">
+          <a
+            href="/"
+            className="mb-6 inline-flex items-center gap-2 text-sm font-bold text-farreh-aqua"
+          >
+            <Home size={17} />
+            صفحه اصلی
+          </a>
+
+          <form className="price-editor-card" onSubmit={submitPassword}>
+            <div className="mb-6">
+              <span className="mb-4 inline-grid h-12 w-12 place-items-center rounded-full border border-farreh-aqua/30 bg-farreh-aqua/10 text-farreh-aqua">
+                <LockKeyhole size={22} />
+              </span>
+              <h1 className="text-2xl font-black leading-10">
+                ورود به مدیریت قیمت‌ها
+              </h1>
+              <p className="mt-2 text-sm leading-7 text-farreh-silver/64">
+                برای مشاهده و تغییر قیمت محصولات، رمز عبور را وارد کنید.
+              </p>
+            </div>
+
+            <label className="price-editor-field">
+              <span>رمز عبور</span>
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => {
+                  setPassword(event.currentTarget.value);
+                  setErrorMessage("");
+                }}
+                autoFocus
+              />
+            </label>
+
+            {errorMessage ? (
+              <p className="mt-3 rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm font-bold text-red-200">
+                {errorMessage}
+              </p>
+            ) : null}
+
+            <button type="submit" className="primary-cta mt-5 w-full">
+              <LockKeyhole size={18} />
+              ورود
+            </button>
+          </form>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function PriceEditorPage() {
+  const [draft, setDraft] = useState(() => readPriceState(defaultPriceState));
+  const [savedAt, setSavedAt] = useState("");
+
+  const pricedProducts = useMemo(
+    () => applyPriceStateToProducts(products, draft),
+    [draft],
+  );
+
+  const updateGramPrice = (
+    field: "gramBuyPriceRial" | "gramSellPriceRial",
+    value: string,
+  ) => {
+    setDraft((current) => ({
+      ...current,
+      [field]: parsePriceInput(value),
+    }));
+  };
+
+  const updateProductPrice = (
+    productId: string,
+    field: "buyPriceRial" | "sellPriceRial",
+    value: string,
+  ) => {
+    setDraft((current) => ({
+      ...current,
+      productPrices: {
+        ...current.productPrices,
+        [productId]: {
+          ...current.productPrices[productId],
+          [field]: parsePriceInput(value),
+        },
+      },
+    }));
+  };
+
+  const savePrices = () => {
+    writePriceState(draft);
+    setSavedAt(
+      new Intl.DateTimeFormat("fa-IR", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      }).format(new Date()),
+    );
+  };
+
+  const resetPrices = () => {
+    setDraft(defaultPriceState);
+    setSavedAt("");
+  };
+
+  return (
+    <main className="min-h-screen bg-farreh-ink text-white">
+      <section className="section-shell min-h-screen">
+        <div className="relative z-10 mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-5 border-b border-white/10 pb-6 md:flex-row md:items-center md:justify-between">
+            <div>
+              <a
+                href="/"
+                className="inline-flex items-center gap-2 text-sm font-bold text-farreh-aqua"
+              >
+                <Home size={17} />
+                صفحه اصلی
+              </a>
+              <h1 className="mt-5 text-2xl font-black leading-10 sm:text-4xl">
+                مدیریت قیمت محصولات
+              </h1>
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-farreh-silver/68">
+                قیمت‌ها در همین مرورگر ذخیره می‌شوند و صفحه اصلی از localStorage
+                می‌خواند.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                className="secondary-cta"
+                onClick={resetPrices}
+              >
+                <RotateCcw size={18} />
+                بازنشانی
+              </button>
+              <button
+                type="button"
+                className="primary-cta"
+                onClick={savePrices}
+              >
+                <Save size={18} />
+                ذخیره قیمت‌ها
+              </button>
+            </div>
+          </div>
+
+          {savedAt ? (
+            <div className="mt-5 rounded-lg border border-farreh-aqua/30 bg-farreh-aqua/10 px-4 py-3 text-sm font-bold text-farreh-aqua">
+              قیمت‌ها ساعت {savedAt} ذخیره شدند.
+            </div>
+          ) : null}
+
+          <div className="mt-8 grid gap-4 md:grid-cols-2">
+            <label className="price-editor-field">
+              <span>قیمت خرید هر گرم</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={formatPriceInput(draft.gramBuyPriceRial)}
+                onChange={(event) =>
+                  updateGramPrice("gramBuyPriceRial", event.currentTarget.value)
+                }
+              />
+            </label>
+            <label className="price-editor-field">
+              <span>قیمت فروش هر گرم</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={formatPriceInput(draft.gramSellPriceRial)}
+                onChange={(event) =>
+                  updateGramPrice(
+                    "gramSellPriceRial",
+                    event.currentTarget.value,
+                  )
+                }
+              />
+            </label>
+          </div>
+
+          <div className="mt-8 grid gap-4">
+            {pricedProducts.map((product) => (
+              <article key={product.id} className="price-editor-card">
+                <div className="grid gap-4 lg:grid-cols-[7rem_minmax(0,1fr)] lg:items-center">
+                  <img
+                    src={product.image}
+                    alt={product.titleFa}
+                    loading="lazy"
+                    onError={useFallbackImage}
+                  />
+                  <div className="min-w-0">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="text-xs font-black text-farreh-aqua">
+                          {product.category}
+                        </p>
+                        <h2 className="mt-1 text-lg font-black leading-8">
+                          {product.titleFa}
+                        </h2>
+                        <p className="text-xs uppercase tracking-[0.18em] text-farreh-silver/45">
+                          {product.titleEn}
+                        </p>
+                      </div>
+                      <span className="purity-badge">
+                        {formatNumber(product.weightGrams)} گرم
+                      </span>
+                    </div>
+
+                    <div className="mt-5 grid gap-3 md:grid-cols-2">
+                      <label className="price-editor-field compact">
+                        <span>قیمت خرید محصول</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={formatPriceInput(product.buyPriceRial)}
+                          onChange={(event) =>
+                            updateProductPrice(
+                              product.id,
+                              "buyPriceRial",
+                              event.currentTarget.value,
+                            )
+                          }
+                        />
+                      </label>
+                      <label className="price-editor-field compact">
+                        <span>قیمت فروش محصول</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={formatPriceInput(product.sellPriceRial)}
+                          onChange={(event) =>
+                            updateProductPrice(
+                              product.id,
+                              "sellPriceRial",
+                              event.currentTarget.value,
+                            )
+                          }
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+}
+
 export default function App() {
+  const priceState = useSavedPriceState();
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.sessionStorage.getItem(ADMIN_AUTH_STORAGE_KEY) === "true",
+  );
+  const pricedProducts = useMemo(
+    () => applyPriceStateToProducts(products, priceState),
+    [priceState],
+  );
+  const routePath =
+    typeof window === "undefined" ? "/" : window.location.pathname;
+
+  if (routePath === "/admin/prices") {
+    if (!isAdminAuthenticated) {
+      return (
+        <AdminLoginPage
+          onAuthenticated={() => {
+            setIsAdminAuthenticated(true);
+          }}
+        />
+      );
+    }
+
+    return <PriceEditorPage />;
+  }
+
   return (
     <main className="min-h-screen overflow-x-hidden bg-farreh-ink text-white">
       <Header />
-      <Hero />
-      <PriceStrip />
-      <ProductsSection />
+      <Hero priceState={priceState} />
+      <PriceStrip priceState={priceState} />
+      <ProductsSection pricedProducts={pricedProducts} />
       <PuritySection />
       <ContactSection />
     </main>
