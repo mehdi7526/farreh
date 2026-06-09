@@ -10,11 +10,19 @@ const getEnv = () =>
 
 const getRedisConfig = () => {
   const env = getEnv();
-  const url = env.UPSTASH_REDIS_REST_URL?.trim();
-  const token = env.UPSTASH_REDIS_REST_TOKEN?.trim();
+  const url = (
+    env.UPSTASH_REDIS_REST_URL ??
+    env.KV_REST_API_URL ??
+    ""
+  ).trim();
+  const token = (
+    env.UPSTASH_REDIS_REST_TOKEN ??
+    env.KV_REST_API_TOKEN ??
+    ""
+  ).trim();
 
   if (!url || !token) {
-    throw new Error("UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are required.");
+    throw new Error("Redis REST URL and token are required.");
   }
 
   return {
