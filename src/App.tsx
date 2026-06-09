@@ -902,8 +902,8 @@ function PriceEditorPage({
                 مدیریت قیمت محصولات
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-7 text-farreh-silver/68">
-                قیمت‌ها از API خوانده می‌شوند و بعد از ذخیره در SQLite برای همه
-                کاربران قابل مشاهده هستند.
+                قیمت‌ها از API خوانده می‌شوند و بعد از ذخیره برای همه کاربران
+                قابل مشاهده هستند.
               </p>
             </div>
 
@@ -950,7 +950,7 @@ function PriceEditorPage({
 
           {savedAt ? (
             <div className="mt-5 rounded-lg border border-farreh-aqua/30 bg-farreh-aqua/10 px-4 py-3 text-sm font-bold text-farreh-aqua">
-              قیمت‌ها ساعت {savedAt} در دیتابیس ذخیره شدند.
+              قیمت‌ها ساعت {savedAt} در منبع اصلی ذخیره شدند.
             </div>
           ) : null}
 
