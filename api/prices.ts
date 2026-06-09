@@ -2,15 +2,15 @@ import {
   errorResponse,
   jsonResponse,
   readJsonBody,
-} from "./_lib/http";
+} from "./_lib/http.js";
 import {
   getBearerToken,
   verifyAdminSession,
-} from "./_lib/session";
+} from "./_lib/session.js";
 import {
   readCurrentPriceState,
   saveCurrentPriceState,
-} from "./_lib/price-state";
+} from "./_lib/price-state.js";
 
 const methodNotAllowed = () => errorResponse("متد درخواست نامعتبر است.", 405);
 

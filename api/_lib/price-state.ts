@@ -1,6 +1,4 @@
-import { gramBuyPriceRial, gramSellPriceRial, products } from "../../src/data/products";
-
-import { redisGet, redisSet } from "./upstash";
+import { redisGet, redisSet } from "./upstash.js";
 
 export interface PriceValues {
   buyPriceRial: number;
@@ -19,6 +17,17 @@ type StoredPricePayload = {
 };
 
 const PRICE_STATE_KEY = "prices:v1";
+const GRAM_BUY_PRICE_RIAL = 1_200_000;
+const GRAM_SELL_PRICE_RIAL = 1_350_000;
+const PRODUCT_WEIGHTS_GRAMS: Record<string, number> = {
+  "farreh-shot-25g": 25,
+  "farreh-shot-50g": 50,
+  "farreh-shot-100g": 100,
+  "farreh-shot-250g": 250,
+  "farreh-shot-500g": 500,
+  "farreh-shot-1000g": 1000,
+  "nadir-silver-bar-1000g": 1000,
+};
 
 const normalizePrice = (value: unknown, fallback: number) => {
   const numberValue =
@@ -34,14 +43,14 @@ const normalizePrice = (value: unknown, fallback: number) => {
 };
 
 export const getDefaultPriceState = (): SavedPriceState => ({
-  gramBuyPriceRial,
-  gramSellPriceRial,
+  gramBuyPriceRial: GRAM_BUY_PRICE_RIAL,
+  gramSellPriceRial: GRAM_SELL_PRICE_RIAL,
   productPrices: Object.fromEntries(
-    products.map((product) => [
-      product.id,
+    Object.entries(PRODUCT_WEIGHTS_GRAMS).map(([productId, weightGrams]) => [
+      productId,
       {
-        buyPriceRial: product.buyPriceRial,
-        sellPriceRial: product.sellPriceRial,
+        buyPriceRial: weightGrams * GRAM_BUY_PRICE_RIAL,
+        sellPriceRial: weightGrams * GRAM_SELL_PRICE_RIAL,
       },
     ]),
   ),

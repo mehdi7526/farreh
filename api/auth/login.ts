@@ -1,8 +1,8 @@
-import { errorResponse, jsonResponse, readJsonBody } from "../_lib/http";
+import { errorResponse, jsonResponse, readJsonBody } from "../_lib/http.js";
 import {
   createAdminSession,
   isValidAdminCredentials,
-} from "../_lib/session";
+} from "../_lib/session.js";
 
 const methodNotAllowed = () => errorResponse("متد درخواست نامعتبر است.", 405);
 

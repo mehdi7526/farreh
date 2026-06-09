@@ -1,4 +1,4 @@
-import { redisDel, redisGet, redisSet } from "./upstash";
+import { redisDel, redisGet, redisSet } from "./upstash.js";
 
 type AdminSessionRecord = {
   token: string;
