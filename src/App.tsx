@@ -424,9 +424,7 @@ function PriceStrip({ priceState }: { priceState: SavedPriceState }) {
         <div className="price-board">
           <div className="price-board-head">
             <div>
-              <p className="text-sm font-bold text-farreh-aqua">
-                نرخ نمایشی امروز
-              </p>
+              <p className="text-sm font-bold text-farreh-aqua">نرخ امروز</p>
               <h2 className="mt-1 text-xl font-black text-white">{todayFa}</h2>
             </div>
           </div>
@@ -615,7 +613,7 @@ function ContactSection() {
           <p className="section-kicker">تماس با گالری فرّه</p>
           <h2 className="section-title">برای استعلام قیمت قطعی تماس بگیرید</h2>
           <p className="mt-5 max-w-2xl text-base leading-8 text-farreh-silver/72">
-            قیمت‌های سایت نمونه‌ی نمایشی هستند و نرخ نهایی خرید و فروش با تماس
+            با توجه به لحظه ای بودن تغییرات قیمت، نرخ نهایی خرید و فروش با تماس
             مستقیم اعلام می‌شود. برای مراجعه حضوری، گالری فرّه در تهران، مجتمع
             تجاری قیطریه، طبقه همکف قرار دارد.
           </p>
