@@ -138,7 +138,11 @@ function PriceValue({
   isLoading: boolean;
   compact?: boolean;
 }) {
-  return isLoading ? <PriceLoadingValue compact={compact} /> : formatRial(value);
+  return isLoading ? (
+    <PriceLoadingValue compact={compact} />
+  ) : (
+    formatRial(value)
+  );
 }
 
 function SilverParticles({ paused }: { paused: boolean }) {
@@ -999,14 +1003,6 @@ function PriceEditorPage({
               >
                 <LogOut size={18} />
                 خروج
-              </button>
-              <button
-                type="button"
-                className="secondary-cta"
-                onClick={resetPrices}
-              >
-                <RotateCcw size={18} />
-                بازنشانی
               </button>
               <button
                 type="button"
