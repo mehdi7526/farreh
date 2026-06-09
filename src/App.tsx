@@ -7,6 +7,7 @@ import {
   LockKeyhole,
   MapPin,
   Phone,
+  LogOut,
   RotateCcw,
   Save,
   Scale,
@@ -25,12 +26,16 @@ import {
 } from "./data/products";
 import { formatNumber, formatRial, todayFa } from "./utils/format";
 import {
-  PRICE_STORAGE_EVENT,
+  PriceApiError,
   applyPriceStateToProducts,
+  clearAuthToken,
+  fetchPriceState,
   getDefaultPriceState,
-  readPriceState,
-  writePriceState,
+  loginAdmin,
+  readAuthToken,
+  savePriceState,
   type SavedPriceState,
+  writeAuthToken,
 } from "./utils/priceStorage";
 
 const categories: Array<ProductCategory | "همه محصولات"> = [
@@ -48,11 +53,9 @@ const heroStats = [
 const defaultPriceState = getDefaultPriceState(
   products,
   gramBuyPriceRial,
-  gramSellPriceRial,
+  gramSellPriceRial
 );
 
-const ADMIN_PASSWORD = "uFQyy97z1";
-const ADMIN_AUTH_STORAGE_KEY = "farreh-gallery-admin-auth-v1";
 const PRODUCT_IMAGE_FALLBACK = "/images/products/farreh-shot-50g.jpeg";
 
 const normalizeDigits = (value: string) =>
@@ -68,6 +71,17 @@ const parsePriceInput = (value: string) => {
 const formatPriceInput = (value: number) =>
   Number.isFinite(value) ? formatNumber(value) : "";
 
+const formatSavedTime = (value: Date | string = new Date()) => {
+  const date = typeof value === "string" ? new Date(value) : value;
+  const safeDate = Number.isNaN(date.getTime()) ? new Date() : date;
+
+  return new Intl.DateTimeFormat("fa-IR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(safeDate);
+};
+
 const useFallbackImage = (event: React.SyntheticEvent<HTMLImageElement>) => {
   if (event.currentTarget.src.endsWith(PRODUCT_IMAGE_FALLBACK)) return;
 
@@ -75,20 +89,23 @@ const useFallbackImage = (event: React.SyntheticEvent<HTMLImageElement>) => {
 };
 
 function useSavedPriceState() {
-  const [priceState, setPriceState] = useState(() =>
-    readPriceState(defaultPriceState),
-  );
+  const [priceState, setPriceState] = useState(defaultPriceState);
 
   useEffect(() => {
-    const syncPriceState = () =>
-      setPriceState(readPriceState(defaultPriceState));
+    let isMounted = true;
 
-    window.addEventListener(PRICE_STORAGE_EVENT, syncPriceState);
-    window.addEventListener("storage", syncPriceState);
+    const syncPriceState = async () => {
+      try {
+        const response = await fetchPriceState(defaultPriceState);
+        if (isMounted) setPriceState(response.prices);
+      } catch {
+        if (isMounted) setPriceState(defaultPriceState);
+      }
+    };
 
+    void syncPriceState();
     return () => {
-      window.removeEventListener(PRICE_STORAGE_EVENT, syncPriceState);
-      window.removeEventListener("storage", syncPriceState);
+      isMounted = false;
     };
   }, []);
 
@@ -166,7 +183,7 @@ function FloatingSilver({ paused }: { paused: boolean }) {
         ] as [number, number, number],
         scale: 0.055 + (index % 3) * 0.014,
       })),
-    [],
+    []
   );
 
   return (
@@ -509,9 +526,9 @@ function ProductsSection({ pricedProducts }: { pricedProducts: Product[] }) {
       activeCategory === "همه محصولات"
         ? pricedProducts
         : pricedProducts.filter(
-            (product) => product.category === activeCategory,
+            (product) => product.category === activeCategory
           ),
-    [activeCategory, pricedProducts],
+    [activeCategory, pricedProducts]
   );
 
   return (
@@ -637,21 +654,44 @@ function ContactSection() {
   );
 }
 
-function AdminLoginPage({ onAuthenticated }: { onAuthenticated: () => void }) {
+function AdminLoginPage({
+  onAuthenticated,
+  notice,
+}: {
+  onAuthenticated: (authToken: string) => void;
+  notice?: string;
+}) {
+  const [username, setUsername] = useState("farreh_admin");
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const submitPassword = (event: React.FormEvent<HTMLFormElement>) => {
+  const submitPassword = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (password === ADMIN_PASSWORD) {
-      window.sessionStorage.setItem(ADMIN_AUTH_STORAGE_KEY, "true");
-      setErrorMessage("");
-      onAuthenticated();
+    if (!username || !password) {
+      setErrorMessage("نام کاربری و رمز عبور را وارد کنید.");
       return;
     }
 
-    setErrorMessage("رمز عبور درست نیست.");
+    setIsSubmitting(true);
+    setErrorMessage("");
+
+    try {
+      const response = await loginAdmin(username, password);
+      setErrorMessage("");
+      onAuthenticated(response.authToken);
+    } catch (error) {
+      const apiError = error instanceof PriceApiError ? error : null;
+
+      setErrorMessage(
+        apiError?.status === 401
+          ? "رمز عبور درست نیست."
+          : "امکان بررسی رمز عبور وجود ندارد."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -675,11 +715,32 @@ function AdminLoginPage({ onAuthenticated }: { onAuthenticated: () => void }) {
                 ورود به مدیریت قیمت‌ها
               </h1>
               <p className="mt-2 text-sm leading-7 text-farreh-silver/64">
-                برای مشاهده و تغییر قیمت محصولات، رمز عبور را وارد کنید.
+                برای مشاهده و تغییر قیمت محصولات، نام کاربری و رمز عبور را وارد
+                کنید.
               </p>
             </div>
 
+            {notice ? (
+              <p className="mb-3 rounded-lg border border-farreh-aqua/30 bg-farreh-aqua/10 px-3 py-2 text-sm font-bold text-farreh-aqua">
+                {notice}
+              </p>
+            ) : null}
+
             <label className="price-editor-field">
+              <span>نام کاربری</span>
+              <input
+                type="text"
+                autoComplete="username"
+                value={username}
+                onChange={(event) => {
+                  setUsername(event.currentTarget.value);
+                  setErrorMessage("");
+                }}
+                autoFocus
+              />
+            </label>
+
+            <label className="price-editor-field mt-5">
               <span>رمز عبور</span>
               <input
                 type="password"
@@ -689,7 +750,6 @@ function AdminLoginPage({ onAuthenticated }: { onAuthenticated: () => void }) {
                   setPassword(event.currentTarget.value);
                   setErrorMessage("");
                 }}
-                autoFocus
               />
             </label>
 
@@ -699,9 +759,13 @@ function AdminLoginPage({ onAuthenticated }: { onAuthenticated: () => void }) {
               </p>
             ) : null}
 
-            <button type="submit" className="primary-cta mt-5 w-full">
+            <button
+              type="submit"
+              className="primary-cta mt-5 w-full"
+              disabled={isSubmitting}
+            >
               <LockKeyhole size={18} />
-              ورود
+              {isSubmitting ? "در حال بررسی" : "ورود"}
             </button>
           </form>
         </div>
@@ -710,18 +774,57 @@ function AdminLoginPage({ onAuthenticated }: { onAuthenticated: () => void }) {
   );
 }
 
-function PriceEditorPage() {
-  const [draft, setDraft] = useState(() => readPriceState(defaultPriceState));
+function PriceEditorPage({
+  authToken,
+  onLogout,
+  onAuthExpired,
+}: {
+  authToken: string;
+  onLogout: () => void;
+  onAuthExpired: (message: string) => void;
+}) {
+  const [draft, setDraft] = useState(defaultPriceState);
   const [savedAt, setSavedAt] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
   const pricedProducts = useMemo(
     () => applyPriceStateToProducts(products, draft),
-    [draft],
+    [draft]
   );
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadPrices = async () => {
+      setIsLoading(true);
+      setErrorMessage("");
+
+      try {
+        const response = await fetchPriceState(defaultPriceState);
+        if (isMounted) setDraft(response.prices);
+      } catch {
+        if (isMounted) {
+          setErrorMessage(
+            "امکان دریافت قیمت‌های ذخیره‌شده وجود ندارد. مقادیر پیش‌فرض نمایش داده شده‌اند."
+          );
+        }
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+
+    void loadPrices();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const updateGramPrice = (
     field: "gramBuyPriceRial" | "gramSellPriceRial",
-    value: string,
+    value: string
   ) => {
     setDraft((current) => ({
       ...current,
@@ -732,7 +835,7 @@ function PriceEditorPage() {
   const updateProductPrice = (
     productId: string,
     field: "buyPriceRial" | "sellPriceRial",
-    value: string,
+    value: string
   ) => {
     setDraft((current) => ({
       ...current,
@@ -746,20 +849,42 @@ function PriceEditorPage() {
     }));
   };
 
-  const savePrices = () => {
-    writePriceState(draft);
-    setSavedAt(
-      new Intl.DateTimeFormat("fa-IR", {
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-      }).format(new Date()),
-    );
+  const savePrices = async () => {
+    setIsSaving(true);
+    setSavedAt("");
+    setErrorMessage("");
+    let shouldResetSaving = true;
+
+    try {
+      const response = await savePriceState(
+        authToken,
+        draft,
+        defaultPriceState
+      );
+      setDraft(response.prices);
+      setSavedAt(formatSavedTime(response.updatedAt ?? new Date()));
+    } catch (error) {
+      const apiError = error instanceof PriceApiError ? error : null;
+
+      if (apiError?.status === 401) {
+        shouldResetSaving = false;
+        clearAuthToken();
+        onAuthExpired("توکن شما نامعتبر شد. دوباره وارد شوید.");
+        return;
+      }
+
+      setErrorMessage("امکان ذخیره قیمت‌ها وجود ندارد.");
+    } finally {
+      if (shouldResetSaving) {
+        setIsSaving(false);
+      }
+    }
   };
 
   const resetPrices = () => {
     setDraft(defaultPriceState);
     setSavedAt("");
+    setErrorMessage("");
   };
 
   return (
@@ -779,12 +904,20 @@ function PriceEditorPage() {
                 مدیریت قیمت محصولات
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-7 text-farreh-silver/68">
-                قیمت‌ها در همین مرورگر ذخیره می‌شوند و صفحه اصلی از localStorage
-                می‌خواند.
+                قیمت‌ها از API خوانده می‌شوند و بعد از ذخیره در SQLite برای همه
+                کاربران قابل مشاهده هستند.
               </p>
             </div>
 
             <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                className="secondary-cta"
+                onClick={onLogout}
+              >
+                <LogOut size={18} />
+                خروج
+              </button>
               <button
                 type="button"
                 className="secondary-cta"
@@ -797,16 +930,29 @@ function PriceEditorPage() {
                 type="button"
                 className="primary-cta"
                 onClick={savePrices}
+                disabled={isLoading || isSaving}
               >
                 <Save size={18} />
-                ذخیره قیمت‌ها
+                {isSaving ? "در حال ذخیره" : "ذخیره قیمت‌ها"}
               </button>
             </div>
           </div>
 
+          {isLoading ? (
+            <div className="mt-5 rounded-lg border border-farreh-aqua/30 bg-farreh-aqua/10 px-4 py-3 text-sm font-bold text-farreh-aqua">
+              در حال دریافت قیمت‌ها...
+            </div>
+          ) : null}
+
+          {errorMessage ? (
+            <div className="mt-5 rounded-lg border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm font-bold text-red-200">
+              {errorMessage}
+            </div>
+          ) : null}
+
           {savedAt ? (
             <div className="mt-5 rounded-lg border border-farreh-aqua/30 bg-farreh-aqua/10 px-4 py-3 text-sm font-bold text-farreh-aqua">
-              قیمت‌ها ساعت {savedAt} ذخیره شدند.
+              قیمت‌ها ساعت {savedAt} در دیتابیس ذخیره شدند.
             </div>
           ) : null}
 
@@ -831,7 +977,7 @@ function PriceEditorPage() {
                 onChange={(event) =>
                   updateGramPrice(
                     "gramSellPriceRial",
-                    event.currentTarget.value,
+                    event.currentTarget.value
                   )
                 }
               />
@@ -877,7 +1023,7 @@ function PriceEditorPage() {
                             updateProductPrice(
                               product.id,
                               "buyPriceRial",
-                              event.currentTarget.value,
+                              event.currentTarget.value
                             )
                           }
                         />
@@ -892,7 +1038,7 @@ function PriceEditorPage() {
                             updateProductPrice(
                               product.id,
                               "sellPriceRial",
-                              event.currentTarget.value,
+                              event.currentTarget.value
                             )
                           }
                         />
@@ -911,30 +1057,44 @@ function PriceEditorPage() {
 
 export default function App() {
   const priceState = useSavedPriceState();
-  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      window.sessionStorage.getItem(ADMIN_AUTH_STORAGE_KEY) === "true",
-  );
+  const [authToken, setAuthToken] = useState(() => readAuthToken());
+  const [authNotice, setAuthNotice] = useState("");
   const pricedProducts = useMemo(
     () => applyPriceStateToProducts(products, priceState),
-    [priceState],
+    [priceState]
   );
   const routePath =
     typeof window === "undefined" ? "/" : window.location.pathname;
 
   if (routePath === "/admin/prices") {
-    if (!isAdminAuthenticated) {
+    if (!authToken) {
       return (
         <AdminLoginPage
-          onAuthenticated={() => {
-            setIsAdminAuthenticated(true);
+          notice={authNotice}
+          onAuthenticated={(token) => {
+            writeAuthToken(token);
+            setAuthToken(token);
+            setAuthNotice("");
           }}
         />
       );
     }
 
-    return <PriceEditorPage />;
+    return (
+      <PriceEditorPage
+        authToken={authToken}
+        onLogout={() => {
+          clearAuthToken();
+          setAuthToken("");
+          setAuthNotice("");
+        }}
+        onAuthExpired={(message) => {
+          clearAuthToken();
+          setAuthToken("");
+          setAuthNotice(message);
+        }}
+      />
+    );
   }
 
   return (

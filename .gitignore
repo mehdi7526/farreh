@@ -1,6 +1,10 @@
 node_modules/
 dist/
 .vercel/
+.venv/
+__pycache__/
+*.py[cod]
+backend/db.sqlite3
 .DS_Store
 npm-debug.log*
 *.tsbuildinfo

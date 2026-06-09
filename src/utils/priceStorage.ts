@@ -1,7 +1,8 @@
 import type { Product } from "../data/products";
 
-export const PRICE_STORAGE_KEY = "farreh-gallery-prices-v1";
-export const PRICE_STORAGE_EVENT = "farreh-gallery-prices-updated";
+const PRICE_API_ENDPOINT = "/api/prices";
+const AUTH_LOGIN_ENDPOINT = "/api/auth/login";
+export const AUTH_TOKEN_STORAGE_KEY = "auth_token";
 
 export interface PriceValues {
   buyPriceRial: number;
@@ -12,6 +13,27 @@ export interface SavedPriceState {
   gramBuyPriceRial: number;
   gramSellPriceRial: number;
   productPrices: Record<string, PriceValues>;
+}
+
+export interface PriceApiResponse {
+  prices: SavedPriceState;
+  updatedAt: string | null;
+}
+
+export class PriceApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "PriceApiError";
+    this.status = status;
+  }
+}
+
+export interface LoginResponse {
+  authToken: string;
+  username: string;
+  expiresAt: string;
 }
 
 const normalizePrice = (value: unknown, fallback: number) => {
@@ -88,20 +110,142 @@ export const mergePriceState = (
   };
 };
 
-export const readPriceState = (defaults: SavedPriceState): SavedPriceState => {
-  if (typeof window === "undefined") return defaults;
-
+const readJsonResponse = async (response: Response) => {
   try {
-    const rawValue = window.localStorage.getItem(PRICE_STORAGE_KEY);
-    return mergePriceState(defaults, rawValue ? JSON.parse(rawValue) : null);
+    return (await response.json()) as unknown;
   } catch {
-    return defaults;
+    return null;
   }
 };
 
-export const writePriceState = (state: SavedPriceState) => {
-  window.localStorage.setItem(PRICE_STORAGE_KEY, JSON.stringify(state));
-  window.dispatchEvent(new Event(PRICE_STORAGE_EVENT));
+const getErrorMessage = (payload: unknown, fallback: string) => {
+  if (!payload || typeof payload !== "object") return fallback;
+
+  const record = payload as { error?: unknown };
+  return typeof record.error === "string" ? record.error : fallback;
+};
+
+const parsePriceApiResponse = (
+  defaults: SavedPriceState,
+  payload: unknown,
+): PriceApiResponse => {
+  const record =
+    payload && typeof payload === "object"
+      ? (payload as { prices?: unknown; updatedAt?: unknown })
+      : {};
+
+  return {
+    prices: mergePriceState(defaults, record.prices),
+    updatedAt:
+      typeof record.updatedAt === "string" ? record.updatedAt : null,
+  };
+};
+
+export const fetchPriceState = async (
+  defaults: SavedPriceState,
+): Promise<PriceApiResponse> => {
+  const response = await fetch(PRICE_API_ENDPOINT, {
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
+  const payload = await readJsonResponse(response);
+
+  if (!response.ok) {
+    throw new PriceApiError(
+      getErrorMessage(payload, "امکان دریافت قیمت‌ها وجود ندارد."),
+      response.status,
+    );
+  }
+
+  return parsePriceApiResponse(defaults, payload);
+};
+
+export const readAuthToken = () => {
+  if (typeof window === "undefined") return "";
+
+  return window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) ?? "";
+};
+
+export const writeAuthToken = (token: string) => {
+  window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+};
+
+export const clearAuthToken = () => {
+  window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+};
+
+export const loginAdmin = async (
+  username: string,
+  password: string,
+): Promise<LoginResponse> => {
+  const response = await fetch(AUTH_LOGIN_ENDPOINT, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ username, password }),
+  });
+  const payload = await readJsonResponse(response);
+
+  if (!response.ok) {
+    throw new PriceApiError(
+      getErrorMessage(payload, "امکان ورود وجود ندارد."),
+      response.status,
+    );
+  }
+
+  const record =
+    payload && typeof payload === "object"
+      ? (payload as {
+          authToken?: unknown;
+          username?: unknown;
+          expiresAt?: unknown;
+        })
+      : {};
+
+  if (
+    typeof record.authToken !== "string" ||
+    typeof record.username !== "string"
+  ) {
+    throw new PriceApiError("پاسخ ورود نامعتبر است.", 502);
+  }
+
+  if (typeof record.expiresAt !== "string") {
+    throw new PriceApiError("پاسخ ورود نامعتبر است.", 502);
+  }
+
+  return {
+    authToken: record.authToken,
+    username: record.username,
+    expiresAt: record.expiresAt,
+  };
+};
+
+export const savePriceState = async (
+  authToken: string,
+  prices: SavedPriceState,
+  defaults: SavedPriceState,
+): Promise<PriceApiResponse> => {
+  const response = await fetch(PRICE_API_ENDPOINT, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${authToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ action: "save", prices }),
+  });
+  const payload = await readJsonResponse(response);
+
+  if (!response.ok) {
+    throw new PriceApiError(
+      getErrorMessage(payload, "امکان ذخیره قیمت‌ها وجود ندارد."),
+      response.status,
+    );
+  }
+
+  return parsePriceApiResponse(defaults, payload);
 };
 
 export const applyPriceStateToProducts = (
